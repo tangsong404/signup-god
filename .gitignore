@@ -1,0 +1,46 @@
+# --- Python bytecode / caches ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+ENV/
+
+# --- Build / packaging artifacts ---
+build/
+dist/
+*.egg
+*.egg-info/
+pip-wheel-metadata/
+
+# --- Tooling caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+
+# --- IDE / editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- OS junk ---
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# --- Project-local secrets and outputs ---
+# .env contains live cookies / tokens / passwords — never commit it.
+.env
+# Generated batch results; regenerate by running main.py.
+结果.csv
+results.csv
