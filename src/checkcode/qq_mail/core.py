@@ -22,6 +22,15 @@ class SessionLostError(ListenerError):
     pass
 
 
+def extract_first_capture_or_whole(match: Optional[re.Match[str]]) -> Optional[str]:
+    if not match:
+        return None
+    for g in match.groups():
+        if g is not None:
+            return g
+    return match.group(0)
+
+
 @dataclass
 class MailItem:
     sender: str
@@ -84,9 +93,7 @@ class MessageMatcher:
         if not self.matches_envelope(sender, subject):
             return None
         m = self._code_re.search(body)
-        if not m:
-            return None
-        return m.group(1) if m.groups() else m.group(0)
+        return extract_first_capture_or_whole(m)
 
     def should_emit(self, message_id: str, code: str, now: datetime) -> bool:
         if message_id in self._seen_message_ids:

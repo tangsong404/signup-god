@@ -13,7 +13,7 @@ class MailMatchCriteria:
     - ``sender_keyword``: case-insensitive substring matched against the sender field.
     - ``subject_keywords``: ANY one (case-insensitive) appearing in the mail subject is enough.
     - ``code_regex``: regex applied to the (HTML-decoded, whitespace-cleaned) mail body / payload text.
-      If the pattern has a capture group, group(1) is used; otherwise group(0).
+      If the pattern has capture groups, the first non-``None`` group is used; otherwise ``group(0)``.
     """
 
     sender_keyword: str

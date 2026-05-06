@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-from checkcode.mail_match import MailMatchCriteria
 from checkcode.qq_mail import (
     QQListenerFatalError,
     QQListenerMaskedCodeError,
@@ -16,12 +15,10 @@ from checkcode.qq_mail import (
     QQListenerSessionLost,
     QQMailCheckcodeSource,
 )
+from registrars.deepseek.registrar import DeepSeekRegistrar
+from registrars.deepseek.verification_mail import VERIFICATION_CODE_BODY_REGEX
 
-_CRITERIA = MailMatchCriteria(
-    sender_keyword="deepseek",
-    subject_keywords=("DeepSeek", "verification code"),
-    code_regex=r"(?<![0-9])([0-9]{6})(?![0-9])",
-)
+_CRITERIA = DeepSeekRegistrar.mail_match_criteria()
 
 
 class FakeProc:
@@ -75,8 +72,8 @@ def test_init_spawns_listener_and_waits_ready_propagates_criteria_via_env() -> N
     env = captured["env"]
     assert isinstance(env, dict)
     assert env["QQ_MAIL_SENDER_KEYWORD"] == "deepseek"
-    assert json.loads(env["QQ_MAIL_SUBJECT_KEYWORDS"]) == ["DeepSeek", "verification code"]
-    assert env["QQ_MAIL_CODE_REGEX"] == r"(?<![0-9])([0-9]{6})(?![0-9])"
+    assert json.loads(env["QQ_MAIL_SUBJECT_KEYWORDS"]) == ["DeepSeek", "verification code", "验证码"]
+    assert env["QQ_MAIL_CODE_REGEX"] == VERIFICATION_CODE_BODY_REGEX
 
 
 def test_receive_code_requires_init() -> None:

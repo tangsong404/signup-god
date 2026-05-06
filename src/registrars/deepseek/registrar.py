@@ -7,8 +7,10 @@ from typing import TYPE_CHECKING, Any, Callable
 import httpx
 
 from checkcode.mail_match import MailMatchCriteria
+
 from registrars.deepseek.config import DeepSeekConfig
 from registrars.deepseek.pow import solve_guest_challenge
+from registrars.deepseek.verification_mail import VERIFICATION_CODE_BODY_REGEX
 
 if TYPE_CHECKING:
     from checkcode.base import CheckcodeSource
@@ -105,7 +107,7 @@ class DeepSeekRegistrar:
         return MailMatchCriteria(
             sender_keyword="deepseek",
             subject_keywords=("DeepSeek", "verification code", "验证码"),
-            code_regex=r"(?<![0-9])([0-9]{6})(?![0-9])",
+            code_regex=VERIFICATION_CODE_BODY_REGEX,
         )
 
     def __init__(

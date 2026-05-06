@@ -6,7 +6,10 @@ Batch signup driver. The three pluggable layers are picked by .env:
   - SIGNUP_ACCOUNT_GENERATOR      where new account identifiers come    (default: ``duck_email``)
 
 Each successful registration appends one row to ``结果.csv`` (UTF-8 BOM, columns
-``identifier`` / ``password`` / ``token``). Failures are not recorded.
+``identifier`` / ``password`` / ``token``). Failures are not recorded. When DeepSeek returns
+``ACCOUNT_ALREADY_EXISTS``, the driver allocates a new ``@duck.com`` address and retries without
+advancing ``--num``. When responses indicate excessive request rate (e.g. ``REQUEST_TOO_FREQUENT`` /
+Chinese ``频繁`` text), it sleeps 30s and retries using the same address.
 
 Run from ``signup-god`` root::
 
@@ -56,6 +59,45 @@ from registrars.deepseek.registrar import DeepSeekApiError, DeepSeekRegistrar  #
 _RESULT_CSV = _REPO_ROOT / "结果.csv"
 _RESULT_FIELDS = ("identifier", "password", "token")
 _STEP_PACE_SEC = 60.0
+_RATE_LIMIT_RETRY_SLEEP_SEC = 30.0
+
+
+def _deepseek_biz_msg(err: DeepSeekApiError) -> str | None:
+    payload = err.response_json
+    if not isinstance(payload, dict):
+        return None
+    data = payload.get("data")
+    if not isinstance(data, dict):
+        return None
+    bm = data.get("biz_msg")
+    if bm is None:
+        return None
+    return str(bm).strip()
+
+
+def _is_account_already_exists(err: DeepSeekApiError) -> bool:
+    bm = _deepseek_biz_msg(err)
+    return bm is not None and bm.upper() == "ACCOUNT_ALREADY_EXISTS"
+
+
+def _is_request_too_frequent(err: DeepSeekApiError) -> bool:
+    payload = err.response_json
+    if isinstance(payload, dict):
+        top_msg = payload.get("msg")
+        if isinstance(top_msg, str):
+            if "频繁" in top_msg:
+                return True
+            u = top_msg.upper().replace(" ", "_")
+            if "FREQUENT" in u or "RATE_LIMIT" in u or "TOO_MANY_REQUEST" in u:
+                return True
+    bm = _deepseek_biz_msg(err)
+    if bm:
+        if "频繁" in bm:
+            return True
+        u = bm.upper().replace(" ", "_")
+        if "FREQUENT" in u or "RATE_LIMIT" in u or "TOO_MANY_REQUEST" in u:
+            return True
+    return "频繁" in str(err)
 
 
 # ---------------------------------------------------------------------------
@@ -200,21 +242,46 @@ def main() -> int:
             except ValueError as e:
                 print(str(e), file=sys.stderr)
                 return 1
-            for step in range(1, args.num + 1):
+            success_i = 0
+            while success_i < args.num:
                 step_started_at = time.monotonic()
                 identifier = id_gen.next_identifier()
-                spec.register_one(reg, identifier=identifier, password=password)
+                while True:
+                    try:
+                        spec.register_one(reg, identifier=identifier, password=password)
+                        break
+                    except DeepSeekApiError as e:
+                        if _is_account_already_exists(e):
+                            sys.stderr.write(
+                                "[main] DeepSeek biz_msg=ACCOUNT_ALREADY_EXISTS: "
+                                "allocating a new duck address and retrying "
+                                "(does not count toward --num).\n"
+                            )
+                            sys.stderr.flush()
+                            identifier = id_gen.next_identifier()
+                            continue
+                        if _is_request_too_frequent(e):
+                            sys.stderr.write(
+                                f"[main] rate-limited (biz_msg or message mentions "
+                                f"throttling); sleeping {_RATE_LIMIT_RETRY_SLEEP_SEC:.0f}s "
+                                f"then retrying the same address.\n"
+                            )
+                            sys.stderr.flush()
+                            time.sleep(_RATE_LIMIT_RETRY_SLEEP_SEC)
+                            continue
+                        raise
+                success_i += 1
                 _append_success_csv(_RESULT_CSV, identifier=identifier, password=password)
                 sys.stderr.write(f"[main] wrote success row to {_RESULT_CSV.name}\n")
                 step_elapsed = time.monotonic() - step_started_at
                 total_elapsed = time.monotonic() - batch_started_at
                 sys.stderr.write(
-                    f"\n-----{step}/{args.num}, this run elapsed {step_elapsed:.2f}s, "
+                    f"\n-----{success_i}/{args.num}, this run elapsed {step_elapsed:.2f}s, "
                     f"total elapsed {total_elapsed:.2f}s-----\n\n"
                 )
                 sys.stderr.flush()
                 # Pace one registration per 60s window; skip the wait after the last account.
-                if step < args.num:
+                if success_i < args.num:
                     sleep_for = max(0.0, _STEP_PACE_SEC - step_elapsed)
                     if sleep_for > 0:
                         sys.stderr.write(

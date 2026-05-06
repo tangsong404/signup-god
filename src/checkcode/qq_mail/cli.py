@@ -21,6 +21,7 @@ from checkcode.qq_mail.core import (
     MessageMatcher,
     SerialCoordinator,
     StdoutJsonEmitter,
+    extract_first_capture_or_whole,
 )
 
 CN_TZ = timezone(timedelta(hours=8))
@@ -264,7 +265,15 @@ def _load_match_criteria_from_env() -> tuple[str, list[str], str]:
             subject_keywords = [str(x) for x in parsed if str(x).strip()]
         elif isinstance(parsed, str):
             subject_keywords = [parsed]
-    code_regex = (os.environ.get("QQ_MAIL_CODE_REGEX") or r"(?<![0-9])([0-9]{6})(?![0-9])").strip()
+    # Injected by ``QQMailCheckcodeSource`` from ``MailMatchCriteria.code_regex`` (site-specific;
+    # DeepSeek defines theirs in ``registrars.deepseek.verification_mail`` — not configured in .env).
+    code_regex = (os.environ.get("QQ_MAIL_CODE_REGEX") or "").strip()
+    if not code_regex:
+        raise ValueError(
+            "QQ_MAIL_CODE_REGEX is unset. Run via main.py (or any flow that starts the listener "
+            "with registrar mail_match_criteria); do not run the QQ listener standalone without "
+            "injecting MailMatchCriteria."
+        )
     return sender_keyword, subject_keywords, code_regex
 
 
@@ -415,7 +424,7 @@ def main() -> int:
                     continue
                 text_blob = normalize_text("\n".join(_collect_strings(payload)))
                 m = compiled_code_re.search(text_blob)
-                code = (m.group(1) if (m and m.groups()) else (m.group(0) if m else None))
+                code = extract_first_capture_or_whole(m)
                 if not code:
                     _stderr_log(f"code not found in mailid={row['mailid']}")
                     emitter.emit_json(

@@ -163,6 +163,7 @@ class QQMailCheckcodeSource:
         env["QQ_MAIL_SUBJECT_KEYWORDS"] = json.dumps(
             list(self._criteria.subject_keywords), ensure_ascii=False
         )
+        # IPC only: registrar provides ``MailMatchCriteria.code_regex`` (not user .env config).
         env["QQ_MAIL_CODE_REGEX"] = self._criteria.code_regex
         # Keep child's stdio in UTF-8 so the parent (which decodes the pipe as UTF-8) sees
         # consistent text on Windows cp936 consoles.
