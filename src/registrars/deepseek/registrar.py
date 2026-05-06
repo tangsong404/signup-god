@@ -266,8 +266,8 @@ class DeepSeekRegistrar:
 
     @staticmethod
     def random_birthday() -> tuple[int, int]:
-        """Random birthday range required by current flow: year 1970..2010, month 1..12."""
-        return random.randint(1970, 2010), random.randint(1, 12)
+        """Random birthday range required by current flow: year 1970..2005, month 1..12."""
+        return random.randint(1970, 2005), random.randint(1, 12)
 
     def sign(self, email: str, password: str, email_verification_code: str) -> dict[str, Any]:
         target = "/api/v0/users/register"
